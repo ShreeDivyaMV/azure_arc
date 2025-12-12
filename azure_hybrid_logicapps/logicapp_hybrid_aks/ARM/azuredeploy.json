@@ -1,0 +1,374 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "spnClientId": {
+            "type": "string",
+            "metadata": {
+                "description": "Azure service principal client id"
+            }
+        },
+        "spnClientSecret": {
+            "type": "securestring",
+            "metadata": {
+                "description": "Azure service principal client secret"
+            }
+        },
+        "spnTenantId": {
+            "type": "string",
+            "metadata": {
+                "description": "Azure AD tenant id for your service principal"
+            }
+        },
+        "logAnalyticsWorkspaceName": {
+            "type": "string",
+            "defaultValue": "[concat('logicapp-workspace-', uniqueString(resourceGroup().id))]",
+            "metadata": {
+                "description": "Name for your Azure Log Analytics workspace"
+            }
+        },
+        "kubernetesVersion": {
+            "defaultValue": "1.30.0",
+            "type": "string",
+            "metadata": {
+                "description": "Version of Kubernetes to deploy"
+            }
+        },
+        "aksClusterName": {
+            "type": "string",
+            "defaultValue": "[concat('logicapp-aks-', uniqueString(resourceGroup().id))]",
+            "metadata": {
+                "description": "Name for the Azure Kubernetes Service cluster"
+            }
+        },
+        "connectedClusterName": {
+            "type": "string",
+            "defaultValue": "[concat('logicapp-arc-', uniqueString(resourceGroup().id))]",
+            "metadata": {
+                "description": "Name for the Azure Arc-enabled Kubernetes cluster"
+            }
+        },
+        "customLocationName": {
+            "type": "string",
+            "defaultValue": "logicapp-hybrid-location",
+            "metadata": {
+                "description": "Name for the custom location"
+            }
+        },
+        "connectedEnvironmentName": {
+            "type": "string",
+            "defaultValue": "[concat('logicapp-env-', uniqueString(resourceGroup().id))]",
+            "metadata": {
+                "description": "Name for the Azure Container Apps connected environment"
+            }
+        },
+        "sqlServerName": {
+            "type": "string",
+            "defaultValue": "[concat('logicappsql', uniqueString(resourceGroup().id))]",
+            "metadata": {
+                "description": "Name for the SQL Server instance"
+            }
+        },
+        "sqlDatabaseName": {
+            "type": "string",
+            "defaultValue": "LogicAppDB",
+            "metadata": {
+                "description": "Name for the SQL database"
+            }
+        },
+        "sqlAdminUsername": {
+            "type": "string",
+            "defaultValue": "sqladmin",
+            "metadata": {
+                "description": "SQL Server administrator username"
+            }
+        },
+        "sqlAdminPassword": {
+            "type": "securestring",
+            "metadata": {
+                "description": "SQL Server administrator password"
+            }
+        },
+        "storageAccountName": {
+            "type": "string",
+            "defaultValue": "[concat('logicappsa', uniqueString(resourceGroup().id))]",
+            "metadata": {
+                "description": "Name for the storage account (for SMB file share)"
+            }
+        },
+        "fileShareName": {
+            "type": "string",
+            "defaultValue": "logicapp-artifacts",
+            "metadata": {
+                "description": "Name for the SMB file share"
+            }
+        },
+        "logicAppName": {
+            "type": "string",
+            "defaultValue": "[concat('logicapp-hybrid-', uniqueString(resourceGroup().id))]",
+            "metadata": {
+                "description": "Name for the Logic App"
+            }
+        }
+    },
+    "variables": {
+        "location": "[resourceGroup().location]"
+    },
+    "resources": [
+        {
+            "type": "Microsoft.OperationalInsights/workspaces",
+            "apiVersion": "2021-12-01-preview",
+            "name": "[parameters('logAnalyticsWorkspaceName')]",
+            "location": "[variables('location')]",
+            "properties": {
+                "sku": {
+                    "name": "PerGB2018"
+                },
+                "retentionInDays": 30
+            }
+        },
+        {
+            "type": "Microsoft.ContainerService/managedClusters",
+            "apiVersion": "2023-05-01",
+            "name": "[parameters('aksClusterName')]",
+            "location": "[variables('location')]",
+            "identity": {
+                "type": "SystemAssigned"
+            },
+            "properties": {
+                "kubernetesVersion": "[parameters('kubernetesVersion')]",
+                "dnsPrefix": "[parameters('aksClusterName')]",
+                "agentPoolProfiles": [
+                    {
+                        "name": "systempool",
+                        "count": 3,
+                        "vmSize": "Standard_D4s_v3",
+                        "osType": "Linux",
+                        "mode": "System",
+                        "enableAutoScaling": true,
+                        "minCount": 1,
+                        "maxCount": 6
+                    }
+                ],
+                "servicePrincipalProfile": {
+                    "clientId": "[parameters('spnClientId')]",
+                    "secret": "[parameters('spnClientSecret')]"
+                },
+                "addonProfiles": {
+                    "omsagent": {
+                        "enabled": true,
+                        "config": {
+                            "logAnalyticsWorkspaceResourceID": "[resourceId('Microsoft.OperationalInsights/workspaces', parameters('logAnalyticsWorkspaceName'))]"
+                        }
+                    }
+                }
+            },
+            "dependsOn": [
+                "[resourceId('Microsoft.OperationalInsights/workspaces', parameters('logAnalyticsWorkspaceName'))]"
+            ]
+        },
+        {
+            "type": "Microsoft.Sql/servers",
+            "apiVersion": "2021-11-01",
+            "name": "[parameters('sqlServerName')]",
+            "location": "[variables('location')]",
+            "properties": {
+                "administratorLogin": "[parameters('sqlAdminUsername')]",
+                "administratorLoginPassword": "[parameters('sqlAdminPassword')]",
+                "version": "12.0",
+                "publicNetworkAccess": "Enabled"
+            }
+        },
+        {
+            "type": "Microsoft.Sql/servers/databases",
+            "apiVersion": "2021-11-01",
+            "name": "[format('{0}/{1}', parameters('sqlServerName'), parameters('sqlDatabaseName'))]",
+            "location": "[variables('location')]",
+            "sku": {
+                "name": "Standard",
+                "tier": "Standard",
+                "capacity": 10
+            },
+            "properties": {
+                "collation": "SQL_Latin1_General_CP1_CI_AS",
+                "maxSizeBytes": 268435456000
+            },
+            "dependsOn": [
+                "[resourceId('Microsoft.Sql/servers', parameters('sqlServerName'))]"
+            ]
+        },
+        {
+            "type": "Microsoft.Sql/servers/firewallRules",
+            "apiVersion": "2021-11-01",
+            "name": "[format('{0}/{1}', parameters('sqlServerName'), 'AllowAllAzureIPs')]",
+            "properties": {
+                "startIpAddress": "0.0.0.0",
+                "endIpAddress": "0.0.0.0"
+            },
+            "dependsOn": [
+                "[resourceId('Microsoft.Sql/servers', parameters('sqlServerName'))]"
+            ]
+        },
+        {
+            "type": "Microsoft.Storage/storageAccounts",
+            "apiVersion": "2022-09-01",
+            "name": "[parameters('storageAccountName')]",
+            "location": "[variables('location')]",
+            "sku": {
+                "name": "Standard_LRS"
+            },
+            "kind": "StorageV2",
+            "properties": {
+                "supportsHttpsTrafficOnly": true,
+                "minimumTlsVersion": "TLS1_2"
+            }
+        },
+        {
+            "type": "Microsoft.Storage/storageAccounts/fileServices",
+            "apiVersion": "2022-09-01",
+            "name": "[format('{0}/default', parameters('storageAccountName'))]",
+            "dependsOn": [
+                "[resourceId('Microsoft.Storage/storageAccounts', parameters('storageAccountName'))]"
+            ]
+        },
+        {
+            "type": "Microsoft.Storage/storageAccounts/fileServices/shares",
+            "apiVersion": "2022-09-01",
+            "name": "[format('{0}/default/{1}', parameters('storageAccountName'), parameters('fileShareName'))]",
+            "properties": {
+                "shareQuota": 5120,
+                "enabledProtocols": "SMB"
+            },
+            "dependsOn": [
+                "[resourceId('Microsoft.Storage/storageAccounts/fileServices', parameters('storageAccountName'), 'default')]"
+            ]
+        },
+        {
+            "type": "Microsoft.Web/sites",
+            "apiVersion": "2022-03-01",
+            "name": "[parameters('logicAppName')]",
+            "location": "[variables('location')]",
+            "kind": "functionapp,workflowapp,kubernetes",
+            "extendedLocation": {
+                "name": "[resourceId('Microsoft.ExtendedLocation/customLocations', parameters('customLocationName'))]",
+                "type": "CustomLocation"
+            },
+            "identity": {
+                "type": "SystemAssigned"
+            },
+            "properties": {
+                "name": "[parameters('logicAppName')]",
+                "kubeEnvironmentId": "[resourceId('Microsoft.App/connectedEnvironments', parameters('connectedEnvironmentName'))]",
+                "siteConfig": {
+                    "appSettings": [
+                        {
+                            "name": "FUNCTIONS_EXTENSION_VERSION",
+                            "value": "~4"
+                        },
+                        {
+                            "name": "FUNCTIONS_WORKER_RUNTIME",
+                            "value": "node"
+                        },
+                        {
+                            "name": "WEBSITE_NODE_DEFAULT_VERSION",
+                            "value": "~18"
+                        },
+                        {
+                            "name": "AzureWebJobsStorage",
+                            "value": "[format('DefaultEndpointsProtocol=https;AccountName={0};AccountKey={1};EndpointSuffix=core.windows.net', parameters('storageAccountName'), listKeys(resourceId('Microsoft.Storage/storageAccounts', parameters('storageAccountName')), '2022-09-01').keys[0].value)]"
+                        },
+                        {
+                            "name": "WEBSITE_CONTENTAZUREFILECONNECTIONSTRING",
+                            "value": "[format('DefaultEndpointsProtocol=https;AccountName={0};AccountKey={1};EndpointSuffix=core.windows.net', parameters('storageAccountName'), listKeys(resourceId('Microsoft.Storage/storageAccounts', parameters('storageAccountName')), '2022-09-01').keys[0].value)]"
+                        },
+                        {
+                            "name": "WEBSITE_CONTENTSHARE",
+                            "value": "[parameters('fileShareName')]"
+                        },
+                        {
+                            "name": "AzureFunctionsJobHost__extensionBundle__id",
+                            "value": "Microsoft.Azure.Functions.ExtensionBundle.Workflows"
+                        },
+                        {
+                            "name": "AzureFunctionsJobHost__extensionBundle__version",
+                            "value": "[1.*, 2.0.0)"
+                        },
+                        {
+                            "name": "APP_KIND",
+                            "value": "workflowApp"
+                        },
+                        {
+                            "name": "Workflows.Connection.SQL",
+                            "value": "[format('Server=tcp:{0}.database.windows.net,1433;Initial Catalog={1};Persist Security Info=False;User ID={2};Password={3};MultipleActiveResultSets=False;Encrypt=True;TrustServerCertificate=False;Connection Timeout=30;', parameters('sqlServerName'), parameters('sqlDatabaseName'), parameters('sqlAdminUsername'), parameters('sqlAdminPassword'))]"
+                        },
+                        {
+                            "name": "Workflows.RuntimeConfiguration.RetentionInDays",
+                            "value": "30"
+                        },
+                        {
+                            "name": "WEBSITE_CONTENTOVERVNET",
+                            "value": "1"
+                        },
+                        {
+                            "name": "Workflows.Location.Name",
+                            "value": "[variables('location')]"
+                        },
+                        {
+                            "name": "K8SE_APP_PROTOCOL",
+                            "value": "http"
+                        }
+                    ],
+                    "use32BitWorkerProcess": false,
+                    "ftpsState": "Disabled",
+                    "minTlsVersion": "1.2",
+                    "netFrameworkVersion": "v6.0"
+                },
+                "clientAffinityEnabled": false,
+                "httpsOnly": true,
+                "publicNetworkAccess": "Enabled"
+            },
+            "dependsOn": [
+                "[resourceId('Microsoft.Storage/storageAccounts', parameters('storageAccountName'))]",
+                "[resourceId('Microsoft.Sql/servers/databases', parameters('sqlServerName'), parameters('sqlDatabaseName'))]"
+            ]
+        }
+    ],
+    "outputs": {
+        "aksClusterName": {
+            "type": "string",
+            "value": "[parameters('aksClusterName')]"
+        },
+        "connectedClusterName": {
+            "type": "string",
+            "value": "[parameters('connectedClusterName')]"
+        },
+        "customLocationName": {
+            "type": "string",
+            "value": "[parameters('customLocationName')]"
+        },
+        "connectedEnvironmentName": {
+            "type": "string",
+            "value": "[parameters('connectedEnvironmentName')]"
+        },
+        "sqlServerFqdn": {
+            "type": "string",
+            "value": "[reference(resourceId('Microsoft.Sql/servers', parameters('sqlServerName'))).fullyQualifiedDomainName]"
+        },
+        "sqlDatabaseName": {
+            "type": "string",
+            "value": "[parameters('sqlDatabaseName')]"
+        },
+        "storageAccountName": {
+            "type": "string",
+            "value": "[parameters('storageAccountName')]"
+        },
+        "fileShareName": {
+            "type": "string",
+            "value": "[parameters('fileShareName')]"
+        },
+        "logicAppName": {
+            "type": "string",
+            "value": "[parameters('logicAppName')]"
+        }
+    }
+}

@@ -2,24 +2,6 @@
     "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
     "contentVersion": "1.0.0.0",
     "parameters": {
-        "spnClientId": {
-            "type": "string",
-            "metadata": {
-                "description": "Azure service principal client id"
-            }
-        },
-        "spnClientSecret": {
-            "type": "securestring",
-            "metadata": {
-                "description": "Azure service principal client secret"
-            }
-        },
-        "spnTenantId": {
-            "type": "string",
-            "metadata": {
-                "description": "Azure AD tenant id for your service principal"
-            }
-        },
         "logAnalyticsWorkspaceName": {
             "type": "string",
             "defaultValue": "[concat('logicapp-workspace-', uniqueString(resourceGroup().id))]",
@@ -150,10 +132,6 @@
                         "maxCount": 6
                     }
                 ],
-                "servicePrincipalProfile": {
-                    "clientId": "[parameters('spnClientId')]",
-                    "secret": "[parameters('spnClientSecret')]"
-                },
                 "addonProfiles": {
                     "omsagent": {
                         "enabled": true,

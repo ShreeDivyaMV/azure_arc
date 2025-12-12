@@ -85,7 +85,7 @@
         "connectedEnvironmentResourceId": "[resourceId('Microsoft.App/connectedEnvironments', parameters('connectedEnvironmentName'))]",
         "smbStorageName": "[concat(parameters('logicAppName'), '-smb')]",
         "storageHost": "[concat(parameters('storageAccountName'), '.file.core.windows.net')]",
-        "smbUsername": "[concat('Azure\\', parameters('storageAccountName'))]"
+        "smbUsername": "parameters('storageAccountName')"
     },
     "resources": [
         {

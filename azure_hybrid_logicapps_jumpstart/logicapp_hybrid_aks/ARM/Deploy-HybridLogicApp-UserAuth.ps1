@@ -169,18 +169,28 @@ Write-Host "  Location: $Location" -ForegroundColor White
 Write-Host "  Kubernetes Version: $KubernetesVersion" -ForegroundColor White
 Write-Host ""
 
+# Login to Azure
+Write-Host "[1/19] Logging into Azure..." -ForegroundColor Yellow
+az login
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "ERROR: Failed to login to Azure" -ForegroundColor Red
+    Stop-Transcript
+    exit 1
+}
+Write-Host "  Login successful" -ForegroundColor Green
+
 # Set subscription
-Write-Host "[1/18] Setting Azure subscription..." -ForegroundColor Yellow
+Write-Host "[2/19] Setting Azure subscription..." -ForegroundColor Yellow
 az account set --subscription $SubscriptionId
 if ($LASTEXITCODE -ne 0) {
-    Write-Host "ERROR: Failed to set subscription. Please ensure you're logged in with 'az login'" -ForegroundColor Red
+    Write-Host "ERROR: Failed to set subscription" -ForegroundColor Red
     Stop-Transcript
     exit 1
 }
 Write-Host "  Subscription set successfully" -ForegroundColor Green
 
 # Check if resource group exists, create if not
-Write-Host "[2/18] Checking resource group..." -ForegroundColor Yellow
+Write-Host "[3/19] Checking resource group..." -ForegroundColor Yellow
 $rgExists = az group exists --name $ResourceGroup
 if ($rgExists -eq "true") {
     Write-Host "  Resource group '$ResourceGroup' already exists" -ForegroundColor Cyan
@@ -197,7 +207,7 @@ if ($rgExists -eq "true") {
 }
 
 # Register required resource providers
-Write-Host "[3/18] Registering Azure resource providers..." -ForegroundColor Yellow
+Write-Host "[4/19] Registering Azure resource providers..." -ForegroundColor Yellow
 $providers = @(
     "Microsoft.ContainerService",
     "Microsoft.Kubernetes",
@@ -217,7 +227,7 @@ foreach ($provider in $providers) {
 Write-Host "  All providers registered" -ForegroundColor Green
 
 # Install Azure CLI extensions
-Write-Host "[4/18] Installing Azure CLI extensions..." -ForegroundColor Yellow
+Write-Host "[5/19] Installing Azure CLI extensions..." -ForegroundColor Yellow
 az extension add --name connectedk8s --upgrade --yes 2>&1 | Out-Null
 az extension add --name k8s-extension --upgrade --yes 2>&1 | Out-Null
 az extension add --name customlocation --upgrade --yes 2>&1 | Out-Null
@@ -225,7 +235,7 @@ az extension add --name containerapp --upgrade --yes 2>&1 | Out-Null
 Write-Host "  Extensions installed" -ForegroundColor Green
 
 # Create Log Analytics workspace
-Write-Host "[5/18] Creating Log Analytics workspace..." -ForegroundColor Yellow
+Write-Host "[6/19] Creating Log Analytics workspace..." -ForegroundColor Yellow
 az monitor log-analytics workspace create `
     --resource-group $ResourceGroup `
     --workspace-name $WorkspaceName `
@@ -233,7 +243,7 @@ az monitor log-analytics workspace create `
 Write-Host "  Log Analytics workspace created: $WorkspaceName" -ForegroundColor Green
 
 # Create AKS cluster
-Write-Host "[6/18] Creating AKS cluster (this may take 10-15 minutes)..." -ForegroundColor Yellow
+Write-Host "[7/19] Creating AKS cluster (this may take 10-15 minutes)..." -ForegroundColor Yellow
 az aks create `
     --resource-group $ResourceGroup `
     --name $AksClusterName `
@@ -253,13 +263,13 @@ az aks wait --resource-group $ResourceGroup --name $AksClusterName --created --i
 Write-Host "  AKS cluster created successfully: $AksClusterName" -ForegroundColor Green
 
 # Get AKS credentials
-Write-Host "[7/18] Configuring kubectl access to AKS cluster..." -ForegroundColor Yellow
+Write-Host "[8/19] Configuring kubectl access to AKS cluster..." -ForegroundColor Yellow
 az aks get-credentials --resource-group $ResourceGroup --name $AksClusterName --admin --overwrite-existing
 kubectl get nodes
 Write-Host "  kubectl configured" -ForegroundColor Green
 
 # Create SQL Server and Database
-Write-Host "[8/18] Creating Azure SQL Server and Database..." -ForegroundColor Yellow
+Write-Host "[9/19] Creating Azure SQL Server and Database..." -ForegroundColor Yellow
 az sql server create `
     --resource-group $ResourceGroup `
     --name $SqlServerName `
@@ -283,7 +293,7 @@ az sql db create `
 Write-Host "  SQL Server and Database created: $SqlServerName" -ForegroundColor Green
 
 # Create Storage Account
-Write-Host "[9/18] Creating Storage Account with SMB file share..." -ForegroundColor Yellow
+Write-Host "[10/19] Creating Storage Account with SMB file share..." -ForegroundColor Yellow
 az storage account create `
     --resource-group $ResourceGroup `
     --name $StorageAccountName `
@@ -313,7 +323,7 @@ Write-Host "  Storage Account and file share created: $StorageAccountName" -Fore
 Write-Host "  Subdirectory created for Logic App: $FileShareName\$LogicAppName" -ForegroundColor Green
 
 # Install SMB CSI driver
-Write-Host "[10/18] Installing SMB CSI driver..." -ForegroundColor Yellow
+Write-Host "[11/19] Installing SMB CSI driver..." -ForegroundColor Yellow
 helm repo add csi-driver-smb https://raw.githubusercontent.com/kubernetes-csi/csi-driver-smb/master/charts 2>&1 | Out-Null
 helm repo update 2>&1 | Out-Null
 helm install csi-driver-smb csi-driver-smb/csi-driver-smb --namespace kube-system --version v1.15.0 2>&1 | Out-Null
@@ -322,7 +332,7 @@ kubectl get csidriver
 Write-Host "  SMB CSI driver installed" -ForegroundColor Green
 
 # Connect cluster to Azure Arc
-Write-Host "[11/18] Connecting AKS cluster to Azure Arc (5-10 minutes)..." -ForegroundColor Yellow
+Write-Host "[12/19] Connecting AKS cluster to Azure Arc (5-10 minutes)..." -ForegroundColor Yellow
 az connectedk8s connect `
     --resource-group $ResourceGroup `
     --name $ConnectedClusterName `
@@ -331,7 +341,7 @@ az connectedk8s connect `
 Write-Host "  Arc connection completed: $ConnectedClusterName" -ForegroundColor Green
 
 # Get Log Analytics workspace credentials
-Write-Host "[12/18] Getting Log Analytics workspace credentials..." -ForegroundColor Yellow
+Write-Host "[13/19] Getting Log Analytics workspace credentials..." -ForegroundColor Yellow
 $workspaceId = az monitor log-analytics workspace show `
     --resource-group $ResourceGroup `
     --workspace-name $WorkspaceName `
@@ -347,7 +357,7 @@ $workspaceKeyEncoded = [Convert]::ToBase64String([System.Text.Encoding]::UTF8.Ge
 Write-Host "  Credentials retrieved" -ForegroundColor Green
 
 # Install Container Apps extension
-Write-Host "[13/18] Installing Azure Container Apps extension (5-10 minutes)..." -ForegroundColor Yellow
+Write-Host "[14/19] Installing Azure Container Apps extension (5-10 minutes)..." -ForegroundColor Yellow
 az k8s-extension create `
     --resource-group $ResourceGroup `
     --name $ExtensionName `
@@ -389,7 +399,7 @@ az resource wait `
 Write-Host "  Extension installed: $ExtensionName" -ForegroundColor Green
 
 # Create custom location
-Write-Host "[14/18] Creating custom location..." -ForegroundColor Yellow
+Write-Host "[15/19] Creating custom location..." -ForegroundColor Yellow
 $connectedClusterId = az connectedk8s show `
     --resource-group $ResourceGroup `
     --name $ConnectedClusterName `
@@ -413,7 +423,7 @@ $customLocationId = az customlocation show `
 Write-Host "  Custom location created: $CustomLocationName" -ForegroundColor Green
 
 # Create Container Apps connected environment
-Write-Host "[15/18] Creating Container Apps connected environment..." -ForegroundColor Yellow
+Write-Host "[16/19] Creating Container Apps connected environment..." -ForegroundColor Yellow
 az containerapp connected-env create `
     --resource-group $ResourceGroup `
     --name $ConnectedEnvironmentName `
@@ -428,7 +438,7 @@ $connectedEnvId = az containerapp connected-env show `
 Write-Host "  Connected environment created: $ConnectedEnvironmentName" -ForegroundColor Green
 
 # Create SMB storage mount on Connected Environment
-Write-Host "[16/18] Creating SMB storage mount on Connected Environment..." -ForegroundColor Yellow
+Write-Host "[17/19] Creating SMB storage mount on Connected Environment..." -ForegroundColor Yellow
 
 $storageMountTemplateFile = ".\storage-mount-template.json"
 
@@ -446,7 +456,7 @@ az deployment group create `
 Write-Host "  SMB storage mount created: $StorageMountName" -ForegroundColor Green
 
 # Create Logic App using ARM template
-Write-Host "[17/18] Creating Hybrid Logic App using ARM template..." -ForegroundColor Yellow
+Write-Host "[18/19] Creating Hybrid Logic App using ARM template..." -ForegroundColor Yellow
 
 $sqlConnectionString = "Server=tcp:$SqlServerName.database.windows.net,1433;Initial Catalog=$SqlDatabaseName;User ID=$SqlAdminUsername;Password=$sqlAdminPasswordPlain;Encrypt=True;"
 
@@ -473,7 +483,7 @@ if ($LASTEXITCODE -eq 0) {
 }
 
 # Verify Logic App deployment
-Write-Host "[18/18] Verifying Logic App deployment..." -ForegroundColor Yellow
+Write-Host "[19/19] Verifying Logic App deployment..." -ForegroundColor Yellow
 Start-Sleep -Seconds 10
 
 $logicAppStatus = az containerapp show `

@@ -20,28 +20,16 @@
                 "description": "Name of the connected environment"
             }
         },
-        "storageAccountName": {
-            "type": "string",
-            "metadata": {
-                "description": "Storage account name for SMB file share"
-            }
-        },
-        "fileShareName": {
-            "type": "string",
-            "metadata": {
-                "description": "SMB file share name"
-            }
-        },
-        "storageAccountKey": {
-            "type": "securestring",
-            "metadata": {
-                "description": "Storage account access key"
-            }
-        },
         "sqlConnectionString": {
             "type": "securestring",
             "metadata": {
                 "description": "SQL connection string for workflow state storage"
+            }
+        },
+        "storageMountName": {
+            "type": "string",
+            "metadata": {
+                "description": "Name of the pre-created storage mount on the connected environment"
             }
         },
         "location": {
@@ -82,35 +70,14 @@
     },
     "variables": {
         "customLocationResourceId": "[resourceId('Microsoft.ExtendedLocation/customLocations', parameters('customLocationName'))]",
-        "connectedEnvironmentResourceId": "[resourceId('Microsoft.App/connectedEnvironments', parameters('connectedEnvironmentName'))]",
-        "smbStorageName": "[concat(parameters('logicAppName'), '-smb')]",
-        "storageHost": "[concat(parameters('storageAccountName'), '.file.core.windows.net')]",
-        "smbUsername": "[parameters('storageAccountName')]",
-        "smbSharePath": "[concat(parameters('fileShareName'), '\\\\', parameters('logicAppName'))]"
+        "connectedEnvironmentResourceId": "[resourceId('Microsoft.App/connectedEnvironments', parameters('connectedEnvironmentName'))]"
     },
     "resources": [
-        {
-            "type": "Microsoft.App/connectedEnvironments/storages",
-            "apiVersion": "2025-02-02-preview",
-            "name": "[concat(parameters('connectedEnvironmentName'), '/', variables('smbStorageName'))]",
-            "dependsOn": [],
-            "properties": {
-                "smb": {
-                    "host": "[variables('storageHost')]",
-                    "shareName": "[variables('smbSharePath')]",
-                    "accessMode": "ReadWrite",
-                    "username": "[variables('smbUsername')]",
-                    "password": "[parameters('storageAccountKey')]"
-                }
-            }
-        },
         {
             "type": "Microsoft.App/containerapps",
             "apiVersion": "2025-02-02-preview",
             "name": "[parameters('logicAppName')]",
-            "dependsOn": [
-                "[resourceId('Microsoft.App/connectedEnvironments/storages', parameters('connectedEnvironmentName'), variables('smbStorageName'))]"
-            ],
+            "dependsOn": [],
             "location": "[parameters('location')]",
             "extendedLocation": {
                 "type": "CustomLocation",
@@ -152,7 +119,7 @@
                 "template": {
                     "containers": [
                         {
-                            "image": "mcr.microsoft.com/azurelogicapps/logicapps-base:validation",
+                            "image": "mcr.microsoft.com/azurelogicapps/logicapps-base:latest",
                             "imageType": "ContainerImage",
                             "name": "logicapps-container",
                             "env": [
@@ -204,7 +171,7 @@
                         {
                             "name": "[concat(parameters('logicAppName'), 'artifacts')]",
                             "storageType": "Smb",
-                            "storageName": "[variables('smbStorageName')]"
+                            "storageName": "[parameters('storageMountName')]"
                         }
                     ]
                 }

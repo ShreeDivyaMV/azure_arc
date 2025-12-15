@@ -20,8 +20,8 @@ Before deploying, ensure you have:
 
 ### Tools & Software
 - **Azure CLI** version 2.40.0 or later ([Install](https://docs.microsoft.com/cli/azure/install-azure-cli))
-- **kubectl** version 1.28.0 or later ([Install](https://kubernetes.io/docs/tasks/tools/))
-- **Helm** version 3.0.0 or later ([Install](https://helm.sh/docs/intro/install/))
+- **kubectl** version 1.28.0 or later - Will be installed automatically by the script if not present
+- **Helm** version 3.0.0 or later - Will be installed automatically by the script if not present
 - **PowerShell** 5.1 or later (Windows) or PowerShell Core 7+ (cross-platform)
 
 ### Azure Requirements
@@ -31,6 +31,8 @@ Before deploying, ensure you have:
   - `k8s-extension`
   - `customlocation`
   - `containerapp`
+
+> **Note**: The deployment script automatically checks for and installs kubectl and Helm if they are not found on your system. You only need to ensure Azure CLI and PowerShell are installed manually.
 
 ### Permissions
 - Contributor access to the Azure subscription
@@ -43,6 +45,9 @@ Before deploying, ensure you have:
 The `Deploy-HybridLogicApp-UserAuth.ps1` script provides a fully automated deployment using Azure CLI with interactive user authentication.
 
 1. **Clone or download this repository**
+   ```powershell
+   git clone ttps://github.com/ShreeDivyaMV/azure_arc.git
+   ```
 
 2. **Run the deployment script**:
    ```powershell
@@ -55,33 +60,11 @@ The `Deploy-HybridLogicApp-UserAuth.ps1` script provides a fully automated deplo
    ```
 
 3. **Monitor deployment** - The script will:
+   - Automatically install kubectl and Helm if not present
    - Prompt for Azure login (browser-based authentication)
    - Create all resources automatically (30-45 minutes)
-   - Display progress for each of the 19 deployment steps
+   - Display progress for each of the 21 deployment steps
 
-#### Deployment Steps
-
-The automated script performs the following steps:
-
-1. **[1/19] Login to Azure** - Interactive browser-based authentication
-2. **[2/19] Set Azure subscription** - Configure the target subscription
-3. **[3/19] Check/create resource group** - Ensure resource group exists
-4. **[4/19] Register resource providers** - Enable required Azure services
-5. **[5/19] Install Azure CLI extensions** - Add connectedk8s, k8s-extension, customlocation, containerapp
-6. **[6/19] Create Log Analytics workspace** - Set up monitoring and logging
-7. **[7/19] Create AKS cluster** - Deploy managed Kubernetes (10-15 minutes)
-8. **[8/19] Configure kubectl** - Set up cluster access credentials
-9. **[9/19] Create SQL Server and Database** - Deploy backend database
-10. **[10/19] Create Storage Account** - Set up SMB file share for artifacts
-11. **[11/19] Install SMB CSI driver** - Enable SMB mount in Kubernetes
-12. **[12/19] Connect to Azure Arc** - Enable Arc services (5-10 minutes)
-13. **[13/19] Get Log Analytics credentials** - Retrieve workspace keys
-14. **[14/19] Install Container Apps extension** - Deploy Logic Apps runtime (5-10 minutes)
-15. **[15/19] Create custom location** - Set up Azure location abstraction
-16. **[16/19] Create connected environment** - Deploy Container Apps environment
-17. **[17/19] Create SMB storage mount** - Configure persistent storage
-18. **[18/19] Deploy Logic App** - Create the Logic App using ARM template
-19. **[19/19] Verify deployment** - Check Logic App status and configuration
 
 #### Optional Parameters
 
@@ -109,33 +92,6 @@ You can customize the deployment with additional parameters:
     -WorkspaceName "my-workspace" `
     -LogicAppName "my-logicapp"
 ```
-
-
-For manual control over individual resources:
-
-1. **Create a resource group**:
-   ```bash
-   az group create --name logicapp-hybrid-rg --location eastus
-   ```
-
-2. **Deploy the infrastructure**:
-   ```bash
-   az deployment group create \
-     --resource-group logicapp-hybrid-rg \
-     --template-file ARM/azuredeploy.json \
-     --parameters ARM/azuredeploy.parameters.json
-   ```
-
-3. **Deploy the Logic App** (after infrastructure is ready):
-   ```bash
-   az deployment group create \
-     --resource-group logicapp-hybrid-rg \
-     --template-file ARM/logicapp.json \
-     --parameters ARM/logicapp.parameters.json
-   ```
-
-
-
 
 | Parameter | Description | Default | Required |
 |-----------|-------------|---------|----------|

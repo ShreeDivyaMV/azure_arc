@@ -88,9 +88,10 @@ You can customize the deployment with additional parameters:
     -ConnectedEnvironmentName "my-connected-env" `
     -SqlServerName "mylogicappsql" `
     -StorageAccountName "mylogicappsa" `
-    -StorageMountName "logicapp-smb-mount" `
     -WorkspaceName "my-workspace" `
     -LogicAppName "my-logicapp"
+
+> **Note**: The storage mount name is automatically generated as `{LogicAppName}-smb` and does not need to be specified.
 ```
 
 | Parameter | Description | Default | Required |
